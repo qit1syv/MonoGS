@@ -46,6 +46,7 @@ class SLAM:
         self.use_gui = self.config["Results"]["use_gui"]
         if self.live_mode:
             self.use_gui = True
+        # self.use_gui = False
         self.eval_rendering = self.config["Results"]["eval_rendering"]
 
         model_params.sh_degree = 3 if self.use_spherical_harmonics else 0

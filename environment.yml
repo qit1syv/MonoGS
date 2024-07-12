@@ -15,11 +15,11 @@ dependencies:
   - pip:
     - submodules/simple-knn
     - submodules/diff-gaussian-rasterization
-    - opencv-python==4.8.1.78
+    - opencv-python
     - munch
     - trimesh
     - evo==1.11.0
-    - open3d==0.17.0
+    - open3d
     - torchmetrics
     - imgviz
     - PyOpenGL
@@ -29,3 +29,4 @@ dependencies:
     - lpips
     - rich
     - ruff
+    #- git+https://github.com/princeton-vl/lietorch.git
