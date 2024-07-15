@@ -56,6 +56,13 @@ Setup the environment.
 conda env create -f environment.yml
 conda activate MonoGS
 ```
+
+To run the code in `dev.speedup` branch,
+```
+pip install lycon
+pip install git+https://github.com/princeton-vl/lietorch.git 
+```
+
 Depending on your setup, please change the dependency version of pytorch/cudatoolkit in `environment.yml` by following [this document](https://pytorch.org/get-started/previous-versions/).
 
 Our test setup were:
@@ -123,7 +130,7 @@ Connect the realsense camera to the PC on a **USB-3** port and then run:
 ```bash
 python slam.py --config configs/live/realsense.yaml
 ```
-We tested the method with [Intel Realsense d455](https://www.mouser.co.uk/new/intel/intel-realsense-depth-camera-d455/). We recommend using a similar global shutter camera for robust camera tracking. Please avoid aggressive camera motion, especially before the initial BA is performed. Check out [the first 15 seconds of our YouTube video](https://youtu.be/x604ghp9R_Q?si=S21HgeVTVfNe0BVL) to see how you should move the camera for initialisation. We recommend to use the code in `dev.speed-up` branch for live demo.
+We tested the method with [Intel Realsense d455](https://www.mouser.co.uk/new/intel/intel-realsense-depth-camera-d455/). We recommend using a similar global shutter camera for robust camera tracking. Please avoid aggressive camera motion, especially before the initial BA is performed. Check out [the first 15 seconds of our YouTube video](https://youtu.be/x604ghp9R_Q?si=S21HgeVTVfNe0BVL) to see how you should move the camera for initialisation. We recommend to use the code in `dev.speedup` branch for live demo.
 
 <p align="center">
   <a href="">
