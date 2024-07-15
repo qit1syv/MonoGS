@@ -13,20 +13,21 @@ dependencies:
   - torchvision=0.13.1
   - tqdm
   - pip:
-    - submodules/simple-knn
-    - submodules/diff-gaussian-rasterization
-    - opencv-python
-    - munch
-    - trimesh
-    - evo==1.11.0
-    - open3d
-    - torchmetrics
-    - imgviz
-    - PyOpenGL
-    - glfw
-    - PyGLM
-    - wandb
-    - lpips
-    - rich
-    - ruff
+      - submodules/simple-knn
+      - submodules/diff-gaussian-rasterization
+      - opencv-python
+      - munch
+      - trimesh
+      - evo==1.11.0
+      - open3d
+      - torchmetrics
+      - imgviz
+      - PyOpenGL
+      - glfw
+      - PyGLM
+      - wandb
+      - lpips
+      - rich
+      - ruff
+      - pyrealsense2
     #- git+https://github.com/princeton-vl/lietorch.git

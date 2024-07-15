@@ -1,20 +1,29 @@
 services:
   nvidia:
     # image: nvidia/cuda:11.6.2-base-ubuntu20.04
+    # ports:
+    #   - "22222:22"
+
     network_mode: host
 
     build:
       dockerfile: ./Dockerfile_short
 
     environment:
-     - DISPLAY=${DISPLAY}
-     - QT_X11_NO_MITSHM=1
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
+      # - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
+      # - "$HOME/.Xauthority:/root/.Xauthority:rw"
+      - /dev:/dev
       - "./../:/MonoGS"
 
     command: bash -c "nvidia-smi -l 5"
+
+    device_cgroup_rules:
+      - "c 81:* rmw"
+      - "c 189:* rmw"
 
     deploy:
       resources:

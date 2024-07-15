@@ -1,0 +1,134 @@
+FROM nvidia/cuda:11.6.2-cudnn8-devel-ubuntu20.04 AS base
+
+ENV PATH="/root/miniconda3/bin:${PATH}"
+
+# ARG LIBRS_VERSION
+# # Make sure that we have a version number of librealsense as argument
+# RUN test -n "$LIBRS_VERSION"
+
+
+# Install wget to fetch Miniconda
+RUN apt-get update && \
+    apt-get install -y wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Miniconda on x86 or ARM platforms
+RUN arch=$(uname -m) && \
+    if [ "$arch" = "x86_64" ]; then \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"; \
+    elif [ "$arch" = "aarch64" ]; then \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh"; \
+    else \
+    echo "Unsupported architecture: $arch"; \
+    exit 1; \
+    fi && \
+    wget $MINICONDA_URL -O miniconda.sh && \
+    mkdir -p /root/.conda && \
+    bash miniconda.sh -b -p /root/miniconda3 && \
+    rm -f miniconda.sh
+
+ENV DEBIAN_FRONTEND=noninteractive 
+RUN apt update && \
+    apt-get install -y tcl --no-install-recommends
+RUN apt update && \
+    apt install -y build-essential ninja-build git cuda-toolkit-11-6
+
+# Install ROS2
+# Install necessary tools and dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    curl \
+    gnupg2 \
+    lsb-release \
+    locales && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set the locale
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
+# Add the ROS 2 GPG key
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add -
+
+# Add the ROS 2 repository
+RUN sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
+
+# Install ROS 2 packages and X11 dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    ros-foxy-desktop \
+    libgl1-mesa-glx \
+    x11-apps && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Source the ROS 2 setup script
+RUN echo "source /opt/ros/foxy/setup.bash" >> /etc/bash.bashrc
+
+# Set up entrypoint
+COPY ./ros_entrypoint.sh /
+ENTRYPOINT ["/ros_entrypoint.sh"]
+# CMD ["bash"]
+
+# Expose any necessary ports (e.g., for remote connections or web interfaces)
+EXPOSE 11311
+
+RUN apt-get update \
+    && apt-get install -y \
+    build-essential \
+    cmake \
+    git-all \
+    software-properties-common \
+    usbutils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update \
+    && apt-get install -y \
+    ros-foxy-librealsense2* \
+    ros-foxy-realsense2-* \
+    && rm -rf /var/lib/apt/lists/*
+
+
+RUN apt-get update && \
+    apt-get install -y xorg openbox tmux screen libglu1-mesa-dev freeglut3-dev mesa-common-dev
+
+# Install SSH server
+RUN apt-get update && \
+    apt-get install -y openssh-server && \
+    apt-get clean
+
+# Set the root password for the SSH server (CHANGE THIS PASSWORD!)
+RUN echo 'root:password' | chpasswd
+
+# Permit root login via SSH
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# Enable password authentication
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+# RUN sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' /etc/ssh/sshd_config
+RUN sed -i 's/#X11UseLocalhost yes/X11UseLocalhost yes/' /etc/ssh/sshd_config
+
+
+# SSH port (optional, change if needed)
+EXPOSE 22
+
+# Start SSH service
+CMD ["/usr/sbin/sshd", "-D"]
+
+RUN conda init
+RUN service ssh restart
+
+COPY . /MonoGS
+WORKDIR /MonoGS
+# RUN conda env create -f environment.yml
+
+
+# export LIBGL_ALWAYS_INDIRECT=0
+# export MESA_GL_VERSION_OVERRIDE=4.5
+# export MESA_GLSL_VERSION_OVERRIDE=450
+# export LIBGL_ALWAYS_SOFTWARE=1
