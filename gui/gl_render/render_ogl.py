@@ -28,6 +28,7 @@ def _sort_gaussian_torch(gaus, view_mat):
 # Decide which sort to use
 _sort_gaussian = None
 if not torch.cuda.is_available():
+    print("No CUDA detected")
     raise ImportError
 _sort_gaussian = _sort_gaussian_torch
 
