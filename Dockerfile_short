@@ -72,7 +72,7 @@ RUN echo "source /opt/ros/foxy/setup.bash" >> /etc/bash.bashrc
 
 # Set up entrypoint
 COPY ./ros_entrypoint.sh /
-ENTRYPOINT ["/ros_entrypoint.sh"]
+# ENTRYPOINT ["/ros_entrypoint.sh"]
 # CMD ["bash"]
 
 # Expose any necessary ports (e.g., for remote connections or web interfaces)
@@ -120,15 +120,28 @@ EXPOSE 22
 # Start SSH service
 CMD ["/usr/sbin/sshd", "-D"]
 
-RUN conda init
 RUN service ssh restart
 
 COPY . /MonoGS
 WORKDIR /MonoGS
-# RUN conda env create -f environment.yml
-
+RUN conda init
+# RUN conda create -n MonoGS python=3.7.13 && \
+    # conda activate MonoGS && \
+    # conda install -y pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 pytorch-cuda=11.6 -c pytorch -c nvidia
+RUN conda env create -f environment.yml
+# Make RUN commands use the new environment:
+RUN echo "conda activate MonoGS" >> ~/.bashrc
+SHELL ["/bin/bash", "--login", "-c"]
+# SHELL ["/bin/bash", "--login", "-c", "conda", "env", "update", "-f", "environment_1.yml"]
+# RUN conda env update -f environment_1.yml
+#
+# RUN conda create -n MonoGS python=3.7.13
+# SHELL [ "conda", "run", "-n", "MonoSG", "/bin/bash", "-C" ]
+# RUN echo "make sure torch is installed"
+# RUN python -c "import torch; print(torch.__version__)"
 
 # export LIBGL_ALWAYS_INDIRECT=0
 # export MESA_GL_VERSION_OVERRIDE=4.5
 # export MESA_GLSL_VERSION_OVERRIDE=450
 # export LIBGL_ALWAYS_SOFTWARE=1
+# ENTRYPOINT ["conda", "env", "update", "-f", "environment_1.yml"]
