@@ -30,4 +30,5 @@ dependencies:
       - rich
       - ruff
       - pyrealsense2
-    #- git+https://github.com/princeton-vl/lietorch.git
+      - lycon
+      - git+https://github.com/princeton-vl/lietorch.git

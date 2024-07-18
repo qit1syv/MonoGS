@@ -9,13 +9,13 @@ services:
     build:
       dockerfile: ./Dockerfile_short
 
-    environment:
-      - DISPLAY=${DISPLAY}
-      - QT_X11_NO_MITSHM=1
+    # environment:
+      # - DISPLAY=${DISPLAY}
+      # - QT_X11_NO_MITSHM=1
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # - /tmp/.X11-unix:/tmp/.X11-unix:rw
       # - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
-      - "$HOME/.Xauthority:/root/.Xauthority:rw"
+      # - "$HOME/.Xauthority:/root/.Xauthority:rw"
       - /dev:/dev
       - "./:/MonoGS"
 
