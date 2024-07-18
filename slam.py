@@ -27,7 +27,6 @@ class SLAM:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
 
-
         self.config = config
         self.save_dir = save_dir
         model_params = munchify(config["model_params"])
@@ -70,7 +69,9 @@ class SLAM:
         self.config["Training"]["monocular"] = self.monocular
 
         self.frontend = FrontEnd(self.config)
+        print("Frontend initialized")
         self.backend = BackEnd(self.config)
+        print("Backend initialized")
 
         self.frontend.dataset = self.dataset
         self.frontend.background = self.background

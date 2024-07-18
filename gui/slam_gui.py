@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from OpenGL import GL as gl
 
 from gaussian_splatting.gaussian_renderer import render
-from gaussian_splatting.utils.graphics_utils import fov2focal
+from gaussian_splatting.utils.graphics_utils import fov2focal, getWorld2View2
 from gui.gl_render import util, util_gau
 from gui.gl_render.render_ogl import OpenGLRenderer
 from gui.gui_utils import (
@@ -51,9 +51,6 @@ class SLAM_GUI:
         self.kf_window = None
         self.render_img = None
 
-        self.render_fps = 20.0
-        self.ts_prev = 0.0
-        
         if params_gui is not None:
             self.background = params_gui.background
             self.gaussian_cur = params_gui.gaussians
@@ -241,6 +238,7 @@ class SLAM_GUI:
         if not window:
             glfw.terminate()
             exit(1)
+
         return window
 
     def update_activated_renderer_state(self, gaus):
@@ -254,9 +252,9 @@ class SLAM_GUI:
 
     def add_camera(self, camera, name, color=[0, 1, 0], gt=False, size=0.01):
         W2C = (
-            camera.T_gt.clone()
+            getWorld2View2(camera.R_gt, camera.T_gt)
             if gt
-            else camera.T.clone()
+            else getWorld2View2(camera.R, camera.T)
         )
         W2C = W2C.cpu().numpy()
         C2W = np.linalg.inv(W2C)
@@ -524,7 +522,7 @@ class SLAM_GUI:
         fy = fov2focal(FoVy, image_gui.shape[1])
         cx = image_gui.shape[2] // 2
         cy = image_gui.shape[1] // 2
-        T = torch.from_numpy(w2c).to("cuda").to(torch.float32)
+        T = torch.from_numpy(w2c)
         current_cam = Camera.init_from_gui(
             uid=-1,
             T=T,
@@ -537,7 +535,7 @@ class SLAM_GUI:
             H=image_gui.shape[1],
             W=image_gui.shape[2],
         )
-        current_cam.T = T.clone()
+        current_cam.update_RT(T[0:3, 0:3], T[0:3, 3])
         return current_cam
 
     def rasterise(self, current_cam):
@@ -622,11 +620,11 @@ class SLAM_GUI:
             self.g_camera.target = frustum.center.astype(np.float32)
             self.g_camera.up = frustum.up.astype(np.float32)
 
-            self.gaussians_gl.xyz = self.gaussian_cur.get_xyz.detach().cpu().numpy()
-            self.gaussians_gl.opacity = self.gaussian_cur.get_opacity.detach().cpu().numpy()
-            self.gaussians_gl.scale = self.gaussian_cur.get_scaling.detach().cpu().numpy()
-            self.gaussians_gl.rot = self.gaussian_cur.get_rotation.detach().cpu().numpy()
-            self.gaussians_gl.sh = self.gaussian_cur.get_features.detach().cpu().numpy()[:, 0, :]
+            self.gaussians_gl.xyz = self.gaussian_cur.get_xyz.cpu().numpy()
+            self.gaussians_gl.opacity = self.gaussian_cur.get_opacity.cpu().numpy()
+            self.gaussians_gl.scale = self.gaussian_cur.get_scaling.cpu().numpy()
+            self.gaussians_gl.rot = self.gaussian_cur.get_rotation.cpu().numpy()
+            self.gaussians_gl.sh = self.gaussian_cur.get_features.cpu().numpy()[:, 0, :]
 
             self.update_activated_renderer_state(self.gaussians_gl)
             self.g_renderer.sort_and_update(self.g_camera)
@@ -636,7 +634,7 @@ class SLAM_GUI:
                 0, 0, width, height, gl.GL_RGB, gl.GL_UNSIGNED_BYTE
             )
             img = np.frombuffer(bufferdata, np.uint8, -1).reshape(height, width, 3)
-            img = cv2.flip(img, 0)
+            cv2.flip(img, 0, img)
             render_img = o3d.geometry.Image(img)
             glfw.swap_buffers(self.window_gl)
         else:
@@ -655,14 +653,6 @@ class SLAM_GUI:
         if not self.init:
             return
         current_cam = self.get_current_cam()
-
-        ts_now = time.perf_counter()
-        time_lapsed = ts_now - self.ts_prev
-        if time_lapsed < (1.0/self.render_fps):
-            return
-        self.ts_prev = ts_now
-
-
         results = self.rasterise(current_cam)
         if results is None:
             return
@@ -696,6 +686,7 @@ def run(params_gui=None):
     app = o3d.visualization.gui.Application.instance
     app.initialize()
     win = SLAM_GUI(params_gui)
+    print("Running GUI")
     app.run()
 
 
