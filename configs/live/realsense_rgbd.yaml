@@ -8,12 +8,12 @@ Results:
   use_wandb: False
 
 Dataset:
-  sensor_type: 'depth'
+  sensor_type: "depth"
   pcd_downsample: 256
   pcd_downsample_init: 32
   adaptive_pointsize: True
   point_size: 0.01
-  type: 'realsense'
+  type: "realsense"
 
 Training:
   init_itr_num: 1050
@@ -35,18 +35,17 @@ Training:
   edge_threshold: 1.1
   rgb_boundary_threshold: 0.01
   single_thread: False
-  spherical_harmonics: True
+  spherical_harmonics: False
 
   kf_translation: 0.05
   kf_min_translation: 0.02
   kf_overlap: 0.9
   kf_cutoff: 0.3
-  prune_mode: 'slam'
+  prune_mode: "slam"
 
   lr:
     cam_rot_delta: 0.003
     cam_trans_delta: 0.001
-
 
 opt_params:
   iterations: 30000

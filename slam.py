@@ -27,7 +27,6 @@ class SLAM:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
 
-
         self.config = config
         self.save_dir = save_dir
         model_params = munchify(config["model_params"])
@@ -48,7 +47,7 @@ class SLAM:
         self.eval_rendering = self.config["Results"]["eval_rendering"]
 
         model_params.sh_degree = 3 if self.use_spherical_harmonics else 0
-
+        print("Using SH degree: ", model_params.sh_degree)
         self.gaussians = GaussianModel(model_params.sh_degree, config=self.config)
         self.gaussians.init_lr(6.0)
         self.dataset = load_dataset(

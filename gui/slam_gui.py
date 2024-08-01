@@ -53,7 +53,7 @@ class SLAM_GUI:
 
         self.render_fps = 20.0
         self.ts_prev = 0.0
-        
+
         if params_gui is not None:
             self.background = params_gui.background
             self.gaussian_cur = params_gui.gaussians
@@ -207,6 +207,11 @@ class SLAM_GUI:
         )  # set the callback function
         self.panel.add_child(self.screenshot_btn)
 
+        # screenshot buttom
+        self.save_btn = gui.Button("Save Gaussian")
+        self.save_btn.set_on_clicked(self._on_save_btn)  # set the callback function
+        self.panel.add_child(self.save_btn)
+
         ## Rendering Tab
         tab_margins = gui.Margins(0, int(np.round(0.5 * em)), 0, 0)
         tabs = gui.TabControl()
@@ -253,11 +258,7 @@ class SLAM_GUI:
         self.g_renderer.set_render_reso(self.g_camera.w, self.g_camera.h)
 
     def add_camera(self, camera, name, color=[0, 1, 0], gt=False, size=0.01):
-        W2C = (
-            camera.T_gt.clone()
-            if gt
-            else camera.T.clone()
-        )
+        W2C = camera.T_gt.clone() if gt else camera.T.clone()
         W2C = W2C.cpu().numpy()
         C2W = np.linalg.inv(W2C)
         frustum = create_frustum(C2W, color, size=size)
@@ -373,6 +374,19 @@ class SLAM_GUI:
         img = np.asarray(self.render_img)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         cv2.imwrite(f"{filename}.png", img)
+
+    def _on_save_btn(self):
+        xyz = self.gaussian_cur.get_xyz
+        rgb = self.gaussian_cur.get_features
+        opacity = self.gaussian_cur.get_opacity
+        scales = self.gaussian_cur.get_scaling
+        rotation = self.gaussian_cur.get_rotation
+
+        torch.save(xyz, "xyz.pt")
+        torch.save(rgb, "rgb.pt")
+        torch.save(opacity, "opacity.pt")
+        torch.save(scales, "scales.pt")
+        torch.save(rotation, "rotation.pt")
 
     @staticmethod
     def resize_img(img, width):
@@ -623,10 +637,18 @@ class SLAM_GUI:
             self.g_camera.up = frustum.up.astype(np.float32)
 
             self.gaussians_gl.xyz = self.gaussian_cur.get_xyz.detach().cpu().numpy()
-            self.gaussians_gl.opacity = self.gaussian_cur.get_opacity.detach().cpu().numpy()
-            self.gaussians_gl.scale = self.gaussian_cur.get_scaling.detach().cpu().numpy()
-            self.gaussians_gl.rot = self.gaussian_cur.get_rotation.detach().cpu().numpy()
-            self.gaussians_gl.sh = self.gaussian_cur.get_features.detach().cpu().numpy()[:, 0, :]
+            self.gaussians_gl.opacity = (
+                self.gaussian_cur.get_opacity.detach().cpu().numpy()
+            )
+            self.gaussians_gl.scale = (
+                self.gaussian_cur.get_scaling.detach().cpu().numpy()
+            )
+            self.gaussians_gl.rot = (
+                self.gaussian_cur.get_rotation.detach().cpu().numpy()
+            )
+            self.gaussians_gl.sh = (
+                self.gaussian_cur.get_features.detach().cpu().numpy()[:, 0, :]
+            )
 
             self.update_activated_renderer_state(self.gaussians_gl)
             self.g_renderer.sort_and_update(self.g_camera)
@@ -658,10 +680,9 @@ class SLAM_GUI:
 
         ts_now = time.perf_counter()
         time_lapsed = ts_now - self.ts_prev
-        if time_lapsed < (1.0/self.render_fps):
+        if time_lapsed < (1.0 / self.render_fps):
             return
         self.ts_prev = ts_now
-
 
         results = self.rasterise(current_cam)
         if results is None:

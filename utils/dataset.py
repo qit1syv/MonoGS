@@ -170,8 +170,7 @@ class EuRoCParser:
         pose_indices = self.associate(pose_ts)
 
         frames = []
-        
-        
+
         for i in range(self.n_img):
             trans = data[pose_indices[i], 1:4]
             quat = data[pose_indices[i], 4:8]
@@ -266,8 +265,6 @@ class MonocularDataset(BaseDataset):
         if self.has_depth:
             depth_path = self.depth_paths[idx]
             depth = cv2.imread(depth_path, cv2.IMREAD_ANYDEPTH) / self.depth_scale
-            
-
 
         image = (
             torch.from_numpy(image / 255.0)
@@ -438,7 +435,7 @@ class RealsenseDataset(BaseDataset):
         self.profile = self.pipeline.start(self.config)
         self.align_to = rs.stream.color
         self.align = rs.align(self.align_to)
-        
+
         self.rgb_sensor = self.profile.get_device().query_sensors()[1]
         self.rgb_sensor.set_option(rs.option.enable_auto_exposure, False)
         self.rgb_sensor.set_option(rs.option.enable_auto_white_balance, False)
@@ -449,9 +446,6 @@ class RealsenseDataset(BaseDataset):
 
         self.rgb_intrinsics = self.rgb_profile.get_intrinsics()
 
-
-        
-        
         self.fx = self.rgb_intrinsics.fx
         self.fy = self.rgb_intrinsics.fy
         self.cx = self.rgb_intrinsics.ppx
@@ -473,18 +467,17 @@ class RealsenseDataset(BaseDataset):
         # depth parameters
         self.has_depth = config["Dataset"]["sensor_type"] == "depth"
         self.num_frames = 0
-        
+
         if self.has_depth:
             self.depth_sensor = self.profile.get_device().first_depth_sensor()
-            self.depth_scale  = self.depth_sensor.get_depth_scale()
+            self.depth_scale = self.depth_sensor.get_depth_scale()
             self.depth_profile = rs.video_stream_profile(
-            self.profile.get_stream(rs.stream.depth)
+                self.profile.get_stream(rs.stream.depth)
             )
             self.depth_intrinsics = self.depth_profile.get_intrinsics()
-            print("Depth Scale is: " , self.depth_scale)
+            print("Depth Scale is: ", self.depth_scale)
             print("Depth intrinsics: ", self.depth_intrinsics)
             print("RGB intrinsics: ", self.rgb_intrinsics)
-            
 
     def __getitem__(self, idx):
         pose = torch.eye(4, device=self.device, dtype=self.dtype)
@@ -492,7 +485,6 @@ class RealsenseDataset(BaseDataset):
         frameset = self.pipeline.wait_for_frames()
         aligned_frames = self.align.process(frameset)
         self.num_frames = self.num_frames + 1
-
 
         rgb_frame = aligned_frames.get_color_frame()
         image = np.asanyarray(rgb_frame.get_data())
@@ -506,17 +498,210 @@ class RealsenseDataset(BaseDataset):
             .permute(2, 0, 1)
             .to(device=self.device, dtype=self.dtype)
         )
-        
+
         depth = None
         if self.has_depth:
             aligned_depth_frame = aligned_frames.get_depth_frame()
-            depth = np.array(aligned_depth_frame.get_data())*self.depth_scale
+            depth = np.array(aligned_depth_frame.get_data()) * self.depth_scale
             depth[depth < 0] = 0
             np.nan_to_num(depth, nan=1000)
 
         return image, depth, pose
 
+
+class RecordedRealsenseDataset(BaseDataset):
+    def __init__(self, args, path, config):
+        super().__init__(args, path, config)
+        self.dataset_path = config["Dataset"]["dataset_path"]
+        self.num_imgs = self.num_frames = len(
+            glob.glob(f"{self.dataset_path}/color/*.jpg")
+        ) 
+        self.pipeline = rs.pipeline()
+        self.h, self.w = 480, 640
+        self.config = rs.config()
+        self.config.enable_stream(rs.stream.color, self.w, self.h, rs.format.bgr8, 30)
+        self.config.enable_stream(rs.stream.depth)
+        self.profile = self.pipeline.start(self.config)
+        self.align_to = rs.stream.color
+        self.align = rs.align(self.align_to)
+
+        self.rgb_sensor = self.profile.get_device().query_sensors()[1]
+        self.rgb_sensor.set_option(rs.option.enable_auto_exposure, False)
+        self.rgb_sensor.set_option(rs.option.enable_auto_white_balance, False)
+        self.rgb_sensor.set_option(rs.option.exposure, 100)
+        self.rgb_profile = rs.video_stream_profile(
+            self.profile.get_stream(rs.stream.color)
+        )
+
+        self.rgb_intrinsics = self.rgb_profile.get_intrinsics()
+
+        self.fx = self.rgb_intrinsics.fx
+        self.fy = self.rgb_intrinsics.fy
+        self.cx = self.rgb_intrinsics.ppx
+        self.cy = self.rgb_intrinsics.ppy
+        self.width = self.rgb_intrinsics.width
+        self.height = self.rgb_intrinsics.height
+        self.fovx = focal2fov(self.fx, self.width)
+        self.fovy = focal2fov(self.fy, self.height)
+        self.K = np.array(
+            [[self.fx, 0.0, self.cx], [0.0, self.fy, self.cy], [0.0, 0.0, 1.0]]
+        )
+
+        self.disorted = True
+        self.dist_coeffs = np.asarray(self.rgb_intrinsics.coeffs)
+        self.map1x, self.map1y = cv2.initUndistortRectifyMap(
+            self.K, self.dist_coeffs, np.eye(3), self.K, (self.w, self.h), cv2.CV_32FC1
+        )
+
+        # depth parameters
+        self.has_depth = config["Dataset"]["sensor_type"] == "depth"
+        self.num_frames = 0
+
+        if self.has_depth:
+            self.depth_sensor = self.profile.get_device().first_depth_sensor()
+            self.depth_scale = self.depth_sensor.get_depth_scale()
+            self.depth_profile = rs.video_stream_profile(
+                self.profile.get_stream(rs.stream.depth)
+            )
+            self.depth_intrinsics = self.depth_profile.get_intrinsics()
+            print("Depth Scale is: ", self.depth_scale)
+            print("Depth intrinsics: ", self.depth_intrinsics)
+            print("RGB intrinsics: ", self.rgb_intrinsics)
+
+    def __getitem__(self, idx):
+
+        # idx = "{:03d}".format(idx+550)
+        pose = torch.eye(4, device=self.device, dtype=self.dtype)
+
+        # rgb_frame = cv2.cvtColor(
+        #     cv2.imread(f"{self.dataset_path}/segmented/{'{:03d}'.format(idx)}.jpg"),
+        #     cv2.COLOR_BGR2RGB,
+        # )
+        rgb_frame = cv2.cvtColor(
+            cv2.imread(f"{self.dataset_path}/color/{'{:03d}'.format(idx)}.jpg"),
+            cv2.COLOR_BGR2RGB,
+        )
+        if self.disorted:
+            image = cv2.remap(rgb_frame, self.map1x, self.map1y, cv2.INTER_LINEAR)
+
+        image = (
+            torch.from_numpy(image / 255.0)
+            .clamp(0.0, 1.0)
+            .permute(2, 0, 1)
+            .to(device=self.device, dtype=self.dtype)
+        )
+
+        depth = None
+        if self.has_depth:
+            depth = (
+                np.load(f"{self.dataset_path}/depth/{'{:03d}'.format(idx)}.npy") * self.depth_scale
+            )
+            depth[depth < 0] = 0
+            np.nan_to_num(depth, nan=1000)
+            img_mask = np.sum(rgb_frame, axis=2) == 0
+            depth[img_mask] = 1000
+
+        return image, depth, pose
+
+
+class SegmentedRealsenseDataset(BaseDataset):
+    def __init__(self, args, path, config):
+        super().__init__(args, path, config)
+        self.dataset_path = config["Dataset"]["dataset_path"]
+        self.num_imgs = self.num_frames = len(
+            glob.glob(f"{self.dataset_path}/color/*.jpg")
+        ) 
+        self.pipeline = rs.pipeline()
+        self.h, self.w = 480, 640
+        self.config = rs.config()
+        self.config.enable_stream(rs.stream.color, self.w, self.h, rs.format.bgr8, 30)
+        self.config.enable_stream(rs.stream.depth)
+        self.profile = self.pipeline.start(self.config)
+        self.align_to = rs.stream.color
+        self.align = rs.align(self.align_to)
+
+        self.rgb_sensor = self.profile.get_device().query_sensors()[1]
+        self.rgb_sensor.set_option(rs.option.enable_auto_exposure, False)
+        self.rgb_sensor.set_option(rs.option.enable_auto_white_balance, False)
+        self.rgb_sensor.set_option(rs.option.exposure, 100)
+        self.rgb_profile = rs.video_stream_profile(
+            self.profile.get_stream(rs.stream.color)
+        )
+
+        self.rgb_intrinsics = self.rgb_profile.get_intrinsics()
+
+        self.fx = self.rgb_intrinsics.fx
+        self.fy = self.rgb_intrinsics.fy
+        self.cx = self.rgb_intrinsics.ppx
+        self.cy = self.rgb_intrinsics.ppy
+        self.width = self.rgb_intrinsics.width
+        self.height = self.rgb_intrinsics.height
+        self.fovx = focal2fov(self.fx, self.width)
+        self.fovy = focal2fov(self.fy, self.height)
+        self.K = np.array(
+            [[self.fx, 0.0, self.cx], [0.0, self.fy, self.cy], [0.0, 0.0, 1.0]]
+        )
+
+        self.disorted = True
+        self.dist_coeffs = np.asarray(self.rgb_intrinsics.coeffs)
+        self.map1x, self.map1y = cv2.initUndistortRectifyMap(
+            self.K, self.dist_coeffs, np.eye(3), self.K, (self.w, self.h), cv2.CV_32FC1
+        )
+
+        # depth parameters
+        self.has_depth = config["Dataset"]["sensor_type"] == "depth"
+        self.num_frames = 0
+
+        if self.has_depth:
+            self.depth_sensor = self.profile.get_device().first_depth_sensor()
+            self.depth_scale = self.depth_sensor.get_depth_scale()
+            self.depth_profile = rs.video_stream_profile(
+                self.profile.get_stream(rs.stream.depth)
+            )
+            self.depth_intrinsics = self.depth_profile.get_intrinsics()
+            print("Depth Scale is: ", self.depth_scale)
+            print("Depth intrinsics: ", self.depth_intrinsics)
+            print("RGB intrinsics: ", self.rgb_intrinsics)
+
+    def __getitem__(self, idx):
+
+        # idx = "{:03d}".format(idx+550)
+        pose = torch.eye(4, device=self.device, dtype=self.dtype)
+
+        # rgb_frame = cv2.cvtColor(
+        #     cv2.imread(f"{self.dataset_path}/segmented/{'{:03d}'.format(idx)}.jpg"),
+        #     cv2.COLOR_BGR2RGB,
+        # )
+        rgb_frame = cv2.cvtColor(
+            cv2.imread(f"{self.dataset_path}/color/{'{:03d}'.format(idx)}.jpg"),
+            cv2.COLOR_BGR2RGB,
+        )
+        if self.disorted:
+            image = cv2.remap(rgb_frame, self.map1x, self.map1y, cv2.INTER_LINEAR)
+
+        image = (
+            torch.from_numpy(image / 255.0)
+            .clamp(0.0, 1.0)
+            .permute(2, 0, 1)
+            .to(device=self.device, dtype=self.dtype)
+        )
+
+        depth = None
+        if self.has_depth:
+            depth = (
+                np.load(f"{self.dataset_path}/depth/{'{:03d}'.format(idx)}.npy") * self.depth_scale
+            )
+            depth[depth < 0] = 0
+            np.nan_to_num(depth, nan=1000)
+            img_mask = np.sum(rgb_frame, axis=2) == 0
+            depth[img_mask] = 1000
+        
+        segmentation = cv2.imread(f"{self.dataset_path}/segmented/{'{:03d}'.format(idx)}.jpg", 0)
+
+        return image, depth, pose
+
 def load_dataset(args, path, config):
+    print(args, path, config)
     if config["Dataset"]["type"] == "tum":
         return TUMDataset(args, path, config)
     elif config["Dataset"]["type"] == "replica":
@@ -525,5 +710,9 @@ def load_dataset(args, path, config):
         return EurocDataset(args, path, config)
     elif config["Dataset"]["type"] == "realsense":
         return RealsenseDataset(args, path, config)
+    elif config["Dataset"]["type"] == "recorded_realsense":
+        return RecordedRealsenseDataset(args, path, config)
+    elif config["Dataset"]["type"] == "segmented_realsense":
+        return SegmentedRealsenseDataset(args, path, config)
     else:
         raise ValueError("Unknown dataset type")

@@ -20,7 +20,6 @@ from diff_gaussian_rasterization import (
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.sh_utils import eval_sh
 
-# from gsplat.rendering import rasterization_inria_wrapper, rasterization
 
 def render(
     viewpoint_camera,
@@ -36,7 +35,7 @@ def render(
 
     Background tensor (bg_color) must be on GPU!
     """
-    
+
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
     if pc.get_xyz.shape[0] == 0:
         return None
@@ -71,7 +70,6 @@ def render(
         prefiltered=False,
         debug=False,
     )
-    
 
     rasterizer = GaussianRasterizer(raster_settings=raster_settings)
 
@@ -113,32 +111,6 @@ def render(
             shs = pc.get_features
     else:
         colors_precomp = override_color
-        
-    # gsplat_out = rasterization(
-    #     means3D,  # [N, 3]
-    #     rotations,  # [N, 4]
-    #     scales,  # [N, 3]
-    #     opacity.squeeze(),  # [N]
-    #     colors= shs,  # [(C,) N, D] or [(C,) N, K, 3]
-    #     viewmats=viewpoint_camera.world_view_transform.unsqueeze(0),  # [C, 4, 4]
-    #     Ks=viewpoint_camera.projection_matrix[:3, :3].unsqueeze(0),  # [C, 3, 3]
-    #     width=int(viewpoint_camera.image_height),
-    #     height=int(viewpoint_camera.image_width),
-    #     sh_degree=pc.active_sh_degree,
-    #     render_mode="RGB+D",
-    # ) 
-    
-    # gsplat_out = rasterization_inria_wrapper(
-    #     means3D=means3D[mask],
-    #         means2D=means2D[mask],
-    #         shs=shs[mask],
-    #         colors_precomp=colors_precomp[mask] if colors_precomp is not None else None,
-    #         opacities=opacity[mask],
-    #         scales=scales[mask],
-    #         rotations=rotations[mask],
-    #         cov3D_precomp=cov3D_precomp[mask] if cov3D_precomp is not None else None,
-    #         theta=viewpoint_camera.cam_rot_delta,
-    #         rho=viewpoint_camera.cam_trans_delta,)
 
     # print("rendering features shape", shs.shape)
     # Rasterize visible Gaussians to image, obtain their radii (on screen).

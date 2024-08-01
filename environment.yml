@@ -1,4 +1,4 @@
-name: MonoGS
+name: BonoGS
 channels:
   - pytorch
   - conda-forge
@@ -29,3 +29,8 @@ dependencies:
     - lpips
     - rich
     - ruff
+    - lycon
+    - pyyaml
+    - munch
+    - git+https://github.com/princeton-vl/lietorch.git
+    
