@@ -250,7 +250,10 @@ if __name__ == "__main__":
 
     slam = SLAM(config, save_dir=save_dir)
 
+    start_time = time.time()
     slam.run()
+    print(time.time() - start_time)
+
     wandb.finish()
 
     # All done

@@ -115,19 +115,19 @@ def render(
     else:
         colors_precomp = override_color
 
-    gsplat_out = rasterization(
-        means3D,  # [N, 3]
-        rotations,  # [N, 4]
-        scales,  # [N, 3]
-        opacity.squeeze(),  # [N]
-        colors=shs,  # [(C,) N, D] or [(C,) N, K, 3]
-        viewmats=viewpoint_camera.world_view_transform.unsqueeze(0),  # [C, 4, 4]
-        Ks=viewpoint_camera.projection_matrix[:3, :3].unsqueeze(0),  # [C, 3, 3]
-        width=int(viewpoint_camera.image_height),
-        height=int(viewpoint_camera.image_width),
-        sh_degree=pc.active_sh_degree,
-        render_mode="RGB+D",
-    )
+    # gsplat_out = rasterization(
+    #     means3D,  # [N, 3]
+    #     rotations,  # [N, 4]
+    #     scales,  # [N, 3]
+    #     opacity.squeeze(),  # [N]
+    #     colors=shs,  # [(C,) N, D] or [(C,) N, K, 3]
+    #     viewmats=viewpoint_camera.world_view_transform.unsqueeze(0),  # [C, 4, 4]
+    #     Ks=viewpoint_camera.projection_matrix[:3, :3].unsqueeze(0),  # [C, 3, 3]
+    #     width=int(viewpoint_camera.image_height),
+    #     height=int(viewpoint_camera.image_width),
+    #     sh_degree=pc.active_sh_degree,
+    #     render_mode="RGB+D",
+    # )
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
     if mask is not None:

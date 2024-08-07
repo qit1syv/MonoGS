@@ -3,13 +3,13 @@ Results:
   save_dir: "result"
   save_trj: False
   save_trj_kf_intv: 0
-  use_gui: True
+  use_gui: False
   eval_rendering: False
   use_wandb: False
 
 Dataset:
   dataset_path: "/home/curobot/perc/segment-anything-2/frames"
-  sensor_type: "depth"
+  sensor_type: "monocular"
   pcd_downsample: 256
   pcd_downsample_init: 32
   adaptive_pointsize: True

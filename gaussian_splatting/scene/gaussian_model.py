@@ -116,10 +116,10 @@ class GaussianModel:
         rgb_raw = (image_ab * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy()
 
         seg_raw = cam.original_seg.permute(1, 2, 0).contiguous().cpu().numpy()
+        seg_raw = seg_raw[..., 0]
 
         if depthmap is not None:
             rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
-            seg = o3d.geometry.Image(seg_raw.astype(np.uint8))
             depth = o3d.geometry.Image(depthmap.astype(np.float32))
         else:
             depth_raw = cam.depth
@@ -134,10 +134,9 @@ class GaussianModel:
                 ) * scale
 
             rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
-            seg = o3d.geometry.Image(seg_raw.astype(np.uint8))
             depth = o3d.geometry.Image(depth_raw.astype(np.float32))
 
-        return self.create_pcd_from_image_and_depth(cam, rgb, depth, seg, init)
+        return self.create_pcd_from_image_and_depth(cam, rgb, depth, seg_raw, init)
 
     def create_pcd_from_image_and_depth(self, cam, rgb, depth, seg, init=False):
         if init:
@@ -148,6 +147,13 @@ class GaussianModel:
         if "adaptive_pointsize" in self.config["Dataset"]:
             if self.config["Dataset"]["adaptive_pointsize"]:
                 point_size = min(0.05, point_size * np.median(depth))
+
+        seggy = np.asarray(seg, dtype=np.bool_)
+        depth = np.asarray(depth).astype(np.float32)
+        depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+        depth[~seggy] = np.nan
+
+        depth = o3d.geometry.Image(depth)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             rgb,
             depth,
@@ -155,13 +161,14 @@ class GaussianModel:
             depth_trunc=100.0,
             convert_rgb_to_intensity=False,
         )
-        segd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            seg,
-            depth,
-            depth_scale=1.0,
-            depth_trunc=100.0,
-            convert_rgb_to_intensity=False,
-        )
+
+        # segd = o3d.geometry.RGBDImage.create_from_color_and_depth(
+        #     seg,
+        #     depth,
+        #     depth_scale=1.0,
+        #     depth_trunc=100.0,
+        #     convert_rgb_to_intensity=False,
+        # )
 
         W2C = cam.T.cpu().numpy()
 
@@ -178,32 +185,45 @@ class GaussianModel:
             extrinsic=W2C,
             project_valid_depth_only=True,
         )
-        segd_tmp = o3d.geometry.PointCloud.create_from_rgbd_image(
-            segd,
-            o3d.camera.PinholeCameraIntrinsic(
-                cam.image_width,
-                cam.image_height,
-                cam.fx,
-                cam.fy,
-                cam.cx,
-                cam.cy,
-            ),
-            extrinsic=W2C,
-            project_valid_depth_only=True,
-        )
+        # segd_tmp = o3d.geometry.PointCloud.create_from_rgbd_image(
+        #     segd,
+        #     o3d.camera.PinholeCameraIntrinsic(
+        #         cam.image_width,
+        #         cam.image_height,
+        #         cam.fx,
+        #         cam.fy,
+        #         cam.cx,
+        #         cam.cy,
+        #     ),
+        #     extrinsic=W2C,
+        #     project_valid_depth_only=True,
+        # )
 
+        # new_xyz = np.asarray(pcd_tmp.points)
+        # new_rgb = np.asarray(pcd_tmp.colors)
+        # indices_within = np.ravel_multi_index(np.where(seggy), seggy.shape)
+        # indices_within = np.random.choice(
+        #     indices_within, new_xyz.shape[0] // downsample_factor, replace=False
+        # )
+
+        pcd_tmp = pcd_tmp.random_down_sample(
+            np.sum(seggy) / (seggy.shape[0] * seggy.shape[1]) / downsample_factor
+        )
         new_xyz = np.asarray(pcd_tmp.points)
         new_rgb = np.asarray(pcd_tmp.colors)
-        new_seg = np.asarray(segd_tmp.points)
+        # new_xyz = new_xyz[indices_within]
+        # new_rgb = new_rgb[indices_within]
 
-        sample_from_stack = np.concatenate([new_xyz, new_rgb, new_seg], axis=-1)
-        total_len = sample_from_stack.shape[0]
-        indices = np.random.choice(
-            range(total_len), size=int(total_len / downsample_factor), replace=False
-        )
-        new_xyz = sample_from_stack[indices, 0:3]
-        new_rgb = sample_from_stack[indices, 3:6]
-        new_seg = sample_from_stack[indices, 6:9]
+        # new_seg = np.asarray(segd_tmp.points)
+
+        # sample_from_stack = np.concatenate([new_xyz, new_rgb], axis=-1)
+        # total_len = sample_from_stack.shape[0]
+        # indices = np.random.choice(
+        #     range(total_len), size=int(total_len / downsample_factor), replace=False
+        # )
+        # new_xyz = sample_from_stack[indices, 0:3]
+        # new_rgb = sample_from_stack[indices, 3:6]
+        # new_seg = sample_from_stack[indices, 6:9]
 
         pcd = BasicPointCloud(
             points=new_xyz, colors=new_rgb, normals=np.zeros((new_xyz.shape[0], 3))
@@ -223,16 +243,16 @@ class GaussianModel:
         features[:, :3, 0] = fused_color
         features[:, 3:, :] = 0.0
 
-        fused_segmentation = RGB2SH(
-            torch.from_numpy(np.asarray(new_seg)).float().cuda()
-        )
-        segmentation = (
-            torch.zeros((fused_segmentation.shape[0], 3, (self.max_sh_degree + 1) ** 2))
-            .float()
-            .cuda()
-        )
-        segmentation[:, :3, 0] = fused_segmentation
-        segmentation[:, 3:, :] = 0.0
+        # fused_segmentation = RGB2SH(
+        #     torch.from_numpy(np.asarray(new_seg)).float().cuda()
+        # )
+        # segmentation = (
+        #     torch.zeros((fused_segmentation.shape[0], 3, (self.max_sh_degree + 1) ** 2))
+        #     .float()
+        #     .cuda()
+        # )
+        # segmentation[:, :3, 0] = fused_segmentation
+        # segmentation[:, 3:, :] = 0.0
 
         dist2 = (
             torch.clamp_min(
@@ -254,7 +274,7 @@ class GaussianModel:
             )
         )
 
-        return fused_point_cloud, features, scales, rots, opacities, segmentation
+        return fused_point_cloud, features, scales, rots, opacities, None
 
     def init_lr(self, spatial_lr_scale):
         self.spatial_lr_scale = spatial_lr_scale
@@ -273,9 +293,10 @@ class GaussianModel:
         new_scaling = nn.Parameter(scales.requires_grad_(True))
         new_rotation = nn.Parameter(rots.requires_grad_(True))
         new_opacity = nn.Parameter(opacities.requires_grad_(True))
-        new_segmentation = nn.Parameter(
-            segmentation.transpose(1, 2).contiguous().requires_grad_(True)
-        )
+        # new_segmentation = nn.Parameter(
+        #     segmentation.transpose(1, 2).contiguous().requires_grad_(True)
+        # )
+        new_segmentation = torch.zeros_like(features)
 
         new_unique_kfIDs = torch.ones((new_xyz.shape[0])).int() * kf_id
         new_n_obs = torch.zeros((new_xyz.shape[0])).int()

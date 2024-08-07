@@ -110,30 +110,32 @@ class BackEnd(mp.Process):
                 self.config, image, depth, viewpoint, opacity, initialization=True
             )
 
-            render_pkg = render_seg(
-                viewpoint, self.gaussians, self.pipeline_params, self.background
-            )
-            (
-                image,
-                viewspace_point_tensor,
-                visibility_filter,
-                radii,
-                depth,
-                opacity,
-                n_touched,
-            ) = (
-                render_pkg["render"],
-                render_pkg["viewspace_points"],
-                render_pkg["visibility_filter"],
-                render_pkg["radii"],
-                render_pkg["depth"],
-                render_pkg["opacity"],
-                render_pkg["n_touched"],
-            )
-            loss_init += get_segloss_mapping(
-                self.config, image, depth, viewpoint, opacity, initialization=True
-            )
+            # render_pkg = render_seg(
+            #     viewpoint, self.gaussians, self.pipeline_params, self.background
+            # )
+            # (
+            #     image,
+            #     viewspace_point_tensor,
+            #     visibility_filter,
+            #     radii,
+            #     depth,
+            #     opacity,
+            #     n_touched,
+            # ) = (
+            #     render_pkg["render"],
+            #     render_pkg["viewspace_points"],
+            #     render_pkg["visibility_filter"],
+            #     render_pkg["radii"],
+            #     render_pkg["depth"],
+            #     render_pkg["opacity"],
+            #     render_pkg["n_touched"],
+            # )
+            # loss_init += get_segloss_mapping(
+            #     self.config, image, depth, viewpoint, opacity, initialization=True
+            # )
+            # start_time = time.time()
             loss_init.backward()
+            # print(time.time()-start_time)
 
             with torch.no_grad():
                 self.gaussians.max_radii2D[visibility_filter] = torch.max(
@@ -219,34 +221,35 @@ class BackEnd(mp.Process):
                 visibility_filter_acm.append(visibility_filter)
                 radii_acm.append(radii)
                 n_touched_acm.append(n_touched)
-                render_pkg = render_seg(
-                    viewpoint, self.gaussians, self.pipeline_params, self.background
-                )
-                (
-                    image,
-                    viewspace_point_tensor,
-                    visibility_filter,
-                    radii,
-                    depth,
-                    opacity,
-                    n_touched,
-                ) = (
-                    render_pkg["render"],
-                    render_pkg["viewspace_points"],
-                    render_pkg["visibility_filter"],
-                    render_pkg["radii"],
-                    render_pkg["depth"],
-                    render_pkg["opacity"],
-                    render_pkg["n_touched"],
-                )
 
-                loss_mapping += get_segloss_mapping(
-                    self.config, image, depth, viewpoint, opacity
-                )
-                viewspace_point_tensor_acm.append(viewspace_point_tensor)
-                visibility_filter_acm.append(visibility_filter)
-                radii_acm.append(radii)
-                n_touched_acm.append(n_touched)
+                # render_pkg = render_seg(
+                #     viewpoint, self.gaussians, self.pipeline_params, self.background
+                # )
+                # (
+                #     image,
+                #     viewspace_point_tensor,
+                #     visibility_filter,
+                #     radii,
+                #     depth,
+                #     opacity,
+                #     n_touched,
+                # ) = (
+                #     render_pkg["render"],
+                #     render_pkg["viewspace_points"],
+                #     render_pkg["visibility_filter"],
+                #     render_pkg["radii"],
+                #     render_pkg["depth"],
+                #     render_pkg["opacity"],
+                #     render_pkg["n_touched"],
+                # )
+
+                # loss_mapping += get_segloss_mapping(
+                #     self.config, image, depth, viewpoint, opacity
+                # )
+                # viewspace_point_tensor_acm.append(viewspace_point_tensor)
+                # visibility_filter_acm.append(visibility_filter)
+                # radii_acm.append(radii)
+                # n_touched_acm.append(n_touched)
 
             for cam_idx in torch.randperm(len(random_viewpoint_stack))[:2]:
                 viewpoint = random_viewpoint_stack[cam_idx]
@@ -277,37 +280,39 @@ class BackEnd(mp.Process):
                 visibility_filter_acm.append(visibility_filter)
                 radii_acm.append(radii)
 
-                render_pkg = render_seg(
-                    viewpoint, self.gaussians, self.pipeline_params, self.background
-                )
-                (
-                    image,
-                    viewspace_point_tensor,
-                    visibility_filter,
-                    radii,
-                    depth,
-                    opacity,
-                    n_touched,
-                ) = (
-                    render_pkg["render"],
-                    render_pkg["viewspace_points"],
-                    render_pkg["visibility_filter"],
-                    render_pkg["radii"],
-                    render_pkg["depth"],
-                    render_pkg["opacity"],
-                    render_pkg["n_touched"],
-                )
-                loss_mapping += get_segloss_mapping(
-                    self.config, image, depth, viewpoint, opacity
-                )
-                viewspace_point_tensor_acm.append(viewspace_point_tensor)
-                visibility_filter_acm.append(visibility_filter)
-                radii_acm.append(radii)
+                # render_pkg = render_seg(
+                #     viewpoint, self.gaussians, self.pipeline_params, self.background
+                # )
+                # (
+                #     image,
+                #     viewspace_point_tensor,
+                #     visibility_filter,
+                #     radii,
+                #     depth,
+                #     opacity,
+                #     n_touched,
+                # ) = (
+                #     render_pkg["render"],
+                #     render_pkg["viewspace_points"],
+                #     render_pkg["visibility_filter"],
+                #     render_pkg["radii"],
+                #     render_pkg["depth"],
+                #     render_pkg["opacity"],
+                #     render_pkg["n_touched"],
+                # )
+                # loss_mapping += get_segloss_mapping(
+                #     self.config, image, depth, viewpoint, opacity
+                # )
+                # viewspace_point_tensor_acm.append(viewspace_point_tensor)
+                # visibility_filter_acm.append(visibility_filter)
+                # radii_acm.append(radii)
 
             scaling = self.gaussians.get_scaling
             isotropic_loss = torch.abs(scaling - scaling.mean(dim=1).view(-1, 1))
             loss_mapping += 10 * isotropic_loss.mean()
-            loss_mapping.backward()
+            # start_time = time.time()
+            # loss_mapping.backward()
+            # print(time.time()-start_time)
             gaussian_split = False
             ## Deinsifying / Pruning Gaussians
             with torch.no_grad():

@@ -64,10 +64,11 @@ def get_loss_tracking(config, image, depth, opacity, viewpoint, initialization=F
 
 def get_loss_tracking_rgb(config, image, depth, opacity, viewpoint):
     gt_image = viewpoint.original_image.cuda()
+    segmentation = viewpoint.original_seg[0].cuda().bool()
     l1 = opacity * torch.abs(
         image * viewpoint.rgb_pixel_mask - gt_image * viewpoint.rgb_pixel_mask
     )
-    return l1.mean()
+    return l1.permute(1, 2, 0).mean()
 
 
 def get_loss_tracking_rgbd(
@@ -76,11 +77,16 @@ def get_loss_tracking_rgbd(
     alpha = config["Training"]["alpha"] if "alpha" in config["Training"] else 0.95
     depth_pixel_mask = (viewpoint.gt_depth > 0.01).view(*depth.shape)
     opacity_mask = (opacity > 0.95).view(*depth.shape)
+    segmentation = viewpoint.original_seg[0].cuda().bool()
 
     l1_rgb = get_loss_tracking_rgb(config, image, depth, opacity, viewpoint)
     depth_mask = depth_pixel_mask * opacity_mask
     l1_depth = torch.abs(depth * depth_mask - viewpoint.gt_depth * depth_mask)
-    return alpha * l1_rgb + (1 - alpha) * l1_depth.mean()
+    return (
+        alpha * l1_rgb
+        + (1 - alpha) * l1_depth.permute(1, 2, 0).mean()
+        # + l1_depth.permute(1, 2, 0)[~segmentation].mean()
+    )
 
 
 def get_loss_mapping(config, image, depth, viewpoint, opacity, initialization=False):
@@ -103,23 +109,29 @@ def get_segloss_mapping(config, image, depth, viewpoint, opacity, initialization
         image * viewpoint.rgb_pixel_mask_mapping
         - gt_image * viewpoint.rgb_pixel_mask_mapping
     )
-    print(l1_rgb.mean())
     return l1_rgb.mean() * 0.1
 
 
 def get_loss_mapping_rgb(config, image, depth, viewpoint):
     gt_image = viewpoint.original_image.cuda()
+    segmentation = viewpoint.original_seg[0].cuda().bool()
+
     l1_rgb = torch.abs(
         image * viewpoint.rgb_pixel_mask_mapping
         - gt_image * viewpoint.rgb_pixel_mask_mapping
     )
 
-    return l1_rgb.mean()
+    return (
+        l1_rgb.permute(1, 2, 0)[segmentation].mean()
+        + torch.abs(image.permute(1, 2, 0))[~segmentation].mean()
+    )
 
 
 def get_loss_mapping_rgbd(config, image, depth, viewpoint, initialization=False):
     alpha = config["Training"]["alpha"] if "alpha" in config["Training"] else 0.95
     gt_image = viewpoint.original_image.cuda()
+
+    segmentation = viewpoint.original_seg[0].cuda().bool()
 
     rgb_pixel_mask = viewpoint.rgb_pixel_mask_mapping
     depth_pixel_mask = (viewpoint.gt_depth > 0.01).view(*depth.shape)
@@ -129,7 +141,11 @@ def get_loss_mapping_rgbd(config, image, depth, viewpoint, initialization=False)
         depth * depth_pixel_mask - viewpoint.gt_depth * depth_pixel_mask
     )
 
-    return alpha * l1_rgb.mean() + (1 - alpha) * l1_depth.mean()
+    return (
+        alpha * l1_rgb.permute(1, 2, 0).mean()
+        + (1 - alpha) * l1_depth.permute(1, 2, 0).mean()
+        # + alpha * image.permute(1, 2, 0)[~segmentation].mean()
+    )
 
 
 def get_median_depth(depth, opacity=None, mask=None, return_std=False):
