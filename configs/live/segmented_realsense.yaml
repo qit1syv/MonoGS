@@ -1,20 +1,20 @@
 Results:
-  save_results: True
+  save_results: False
   save_dir: "result"
-  save_trj: True
-  save_trj_kf_intv: 1
+  save_trj: False
+  save_trj_kf_intv: 0
   use_gui: True
   eval_rendering: False
   use_wandb: False
 
 Dataset:
   dataset_path: "/home/curobot/perc/segment-anything-2/frames"
-  sensor_type: "monocular"
+  sensor_type: "depth"
   pcd_downsample: 256
   pcd_downsample_init: 32
   adaptive_pointsize: True
   point_size: 0.01
-  type: "recorded_realsense"
+  type: "segmented_realsense"
 
 Training:
   init_itr_num: 1050
@@ -60,14 +60,14 @@ opt_params:
   rotation_lr: 0.001
   percent_dense: 0.01
   lambda_dssim: 0.2
-  densification_interval: 100
-  opacity_reset_interval: 3000
-  densify_from_iter: 500
+  densification_interval: 500
+  opacity_reset_interval: 100
+  densify_from_iter: 1000
   densify_until_iter: 15000
   densify_grad_threshold: 0.0002
 
 model_params:
-  sh_degree: 2
+  sh_degree: 0
   source_path: ""
   model_path: ""
   resolution: -1

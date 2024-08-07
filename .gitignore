@@ -15,3 +15,6 @@ wandb
 
 result*
 *.pt
+.idea
+__pycache__
+renders/

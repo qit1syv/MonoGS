@@ -2,6 +2,7 @@ import torch
 
 # TODO: remove unused variables/functions
 
+
 def image_gradient(image):
     # Compute image gradient using Scharr Filter
     c = image.shape[0]
@@ -63,8 +64,9 @@ def get_loss_tracking(config, image, depth, opacity, viewpoint, initialization=F
 
 def get_loss_tracking_rgb(config, image, depth, opacity, viewpoint):
     gt_image = viewpoint.original_image.cuda()
-    l1 = opacity * torch.abs(image * viewpoint.rgb_pixel_mask - 
-                             gt_image * viewpoint.rgb_pixel_mask)
+    l1 = opacity * torch.abs(
+        image * viewpoint.rgb_pixel_mask - gt_image * viewpoint.rgb_pixel_mask
+    )
     return l1.mean()
 
 
@@ -91,9 +93,26 @@ def get_loss_mapping(config, image, depth, viewpoint, opacity, initialization=Fa
     return get_loss_mapping_rgbd(config, image_ab, depth, viewpoint)
 
 
+def get_segloss_mapping(config, image, depth, viewpoint, opacity, initialization=False):
+    if initialization:
+        image = image
+    else:
+        image = (torch.exp(viewpoint.exposure_a)) * image + viewpoint.exposure_b
+    gt_image = viewpoint.original_seg.cuda()
+    l1_rgb = torch.abs(
+        image * viewpoint.rgb_pixel_mask_mapping
+        - gt_image * viewpoint.rgb_pixel_mask_mapping
+    )
+    print(l1_rgb.mean())
+    return l1_rgb.mean() * 0.1
+
+
 def get_loss_mapping_rgb(config, image, depth, viewpoint):
     gt_image = viewpoint.original_image.cuda()
-    l1_rgb = torch.abs(image * viewpoint.rgb_pixel_mask_mapping - gt_image * viewpoint.rgb_pixel_mask_mapping)
+    l1_rgb = torch.abs(
+        image * viewpoint.rgb_pixel_mask_mapping
+        - gt_image * viewpoint.rgb_pixel_mask_mapping
+    )
 
     return l1_rgb.mean()
 
@@ -106,7 +125,9 @@ def get_loss_mapping_rgbd(config, image, depth, viewpoint, initialization=False)
     depth_pixel_mask = (viewpoint.gt_depth > 0.01).view(*depth.shape)
 
     l1_rgb = torch.abs(image * rgb_pixel_mask - gt_image * rgb_pixel_mask)
-    l1_depth = torch.abs(depth * depth_pixel_mask - viewpoint.gt_depth * depth_pixel_mask)
+    l1_depth = torch.abs(
+        depth * depth_pixel_mask - viewpoint.gt_depth * depth_pixel_mask
+    )
 
     return alpha * l1_rgb.mean() + (1 - alpha) * l1_depth.mean()
 

@@ -5,12 +5,12 @@ import torch
 import torch.multiprocessing as mp
 from tqdm import tqdm
 
-from gaussian_splatting.gaussian_renderer import render
+from gaussian_splatting.gaussian_renderer import render, render_seg
 from gaussian_splatting.utils.loss_utils import l1_loss, ssim
 from utils.logging_utils import Log
 from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
-from utils.slam_utils import get_loss_mapping
+from utils.slam_utils import get_loss_mapping, get_segloss_mapping
 
 
 class BackEnd(mp.Process):
@@ -109,6 +109,30 @@ class BackEnd(mp.Process):
             loss_init = get_loss_mapping(
                 self.config, image, depth, viewpoint, opacity, initialization=True
             )
+
+            render_pkg = render_seg(
+                viewpoint, self.gaussians, self.pipeline_params, self.background
+            )
+            (
+                image,
+                viewspace_point_tensor,
+                visibility_filter,
+                radii,
+                depth,
+                opacity,
+                n_touched,
+            ) = (
+                render_pkg["render"],
+                render_pkg["viewspace_points"],
+                render_pkg["visibility_filter"],
+                render_pkg["radii"],
+                render_pkg["depth"],
+                render_pkg["opacity"],
+                render_pkg["n_touched"],
+            )
+            loss_init += get_segloss_mapping(
+                self.config, image, depth, viewpoint, opacity, initialization=True
+            )
             loss_init.backward()
 
             with torch.no_grad():
@@ -188,8 +212,35 @@ class BackEnd(mp.Process):
                     render_pkg["opacity"],
                     render_pkg["n_touched"],
                 )
-
                 loss_mapping += get_loss_mapping(
+                    self.config, image, depth, viewpoint, opacity
+                )
+                viewspace_point_tensor_acm.append(viewspace_point_tensor)
+                visibility_filter_acm.append(visibility_filter)
+                radii_acm.append(radii)
+                n_touched_acm.append(n_touched)
+                render_pkg = render_seg(
+                    viewpoint, self.gaussians, self.pipeline_params, self.background
+                )
+                (
+                    image,
+                    viewspace_point_tensor,
+                    visibility_filter,
+                    radii,
+                    depth,
+                    opacity,
+                    n_touched,
+                ) = (
+                    render_pkg["render"],
+                    render_pkg["viewspace_points"],
+                    render_pkg["visibility_filter"],
+                    render_pkg["radii"],
+                    render_pkg["depth"],
+                    render_pkg["opacity"],
+                    render_pkg["n_touched"],
+                )
+
+                loss_mapping += get_segloss_mapping(
                     self.config, image, depth, viewpoint, opacity
                 )
                 viewspace_point_tensor_acm.append(viewspace_point_tensor)
@@ -220,6 +271,33 @@ class BackEnd(mp.Process):
                     render_pkg["n_touched"],
                 )
                 loss_mapping += get_loss_mapping(
+                    self.config, image, depth, viewpoint, opacity
+                )
+                viewspace_point_tensor_acm.append(viewspace_point_tensor)
+                visibility_filter_acm.append(visibility_filter)
+                radii_acm.append(radii)
+
+                render_pkg = render_seg(
+                    viewpoint, self.gaussians, self.pipeline_params, self.background
+                )
+                (
+                    image,
+                    viewspace_point_tensor,
+                    visibility_filter,
+                    radii,
+                    depth,
+                    opacity,
+                    n_touched,
+                ) = (
+                    render_pkg["render"],
+                    render_pkg["viewspace_points"],
+                    render_pkg["visibility_filter"],
+                    render_pkg["radii"],
+                    render_pkg["depth"],
+                    render_pkg["opacity"],
+                    render_pkg["n_touched"],
+                )
+                loss_mapping += get_segloss_mapping(
                     self.config, image, depth, viewpoint, opacity
                 )
                 viewspace_point_tensor_acm.append(viewspace_point_tensor)
@@ -380,8 +458,7 @@ class BackEnd(mp.Process):
                     continue
                 self.map(self.current_window)
                 if self.last_sent >= 10:
-                    self.map(self.current_window, 
-                             prune=True, iters=10)
+                    self.map(self.current_window, prune=True, iters=10)
                     self.push_to_frontend()
             else:
                 data = self.backend_queue.get()

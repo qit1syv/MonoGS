@@ -71,7 +71,6 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False)
     trj_id, trj_est, trj_gt = [], [], []
     trj_est_np, trj_gt_np = [], []
 
-
     for kf_id in kf_ids:
         kf = frames[kf_id]
         pose_est = np.linalg.inv(kf.T.cpu().numpy())
@@ -130,7 +129,7 @@ def eval_rendering(
             continue
         saved_frame_idx.append(idx)
         frame = frames[idx]
-        gt_image, _, _ = dataset[idx]
+        gt_image, _, _, _ = dataset[idx]
 
         rendering = render(frame, gaussians, pipe, background)["render"]
         image = torch.clamp(rendering, 0.0, 1.0)

@@ -17,4 +17,6 @@ ruff
 lycon
 pyyaml
 munch
+plyfile
+pyrealsense2
 git+https://github.com/princeton-vl/lietorch.git

@@ -377,7 +377,9 @@ class SLAM_GUI:
 
     def _on_save_btn(self):
         xyz = self.gaussian_cur.get_xyz
-        rgb = self.gaussian_cur.get_features
+        print(self.gaussian_cur.get_features.shape)
+        print(self.gaussian_cur.get_segmentation)
+        rgb = self.gaussian_cur.get_segmentation
         opacity = self.gaussian_cur.get_opacity
         scales = self.gaussian_cur.get_scaling
         rotation = self.gaussian_cur.get_rotation
