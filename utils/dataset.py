@@ -515,7 +515,7 @@ class RecordedRealsenseDataset(BaseDataset):
         self.dataset_path = config["Dataset"]["dataset_path"]
         self.num_imgs = self.num_frames = len(
             glob.glob(f"{self.dataset_path}/color/*.jpg")
-        ) 
+        )
         self.pipeline = rs.pipeline()
         self.h, self.w = 480, 640
         self.config = rs.config()
@@ -578,7 +578,7 @@ class RecordedRealsenseDataset(BaseDataset):
         #     cv2.COLOR_BGR2RGB,
         # )
         rgb_frame = cv2.cvtColor(
-            cv2.imread(f"{self.dataset_path}/color/{'{:03d}'.format(idx)}.jpg"),
+            cv2.imread(f"{self.dataset_path}/segmented/{'{:03d}'.format(idx)}.jpg"),
             cv2.COLOR_BGR2RGB,
         )
         if self.disorted:
@@ -594,7 +594,8 @@ class RecordedRealsenseDataset(BaseDataset):
         depth = None
         if self.has_depth:
             depth = (
-                np.load(f"{self.dataset_path}/depth/{'{:03d}'.format(idx)}.npy") * self.depth_scale
+                np.load(f"{self.dataset_path}/depth/{'{:03d}'.format(idx)}.npy")
+                * self.depth_scale
             )
             depth[depth < 0] = 0
             np.nan_to_num(depth, nan=1000)
@@ -610,7 +611,7 @@ class SegmentedRealsenseDataset(BaseDataset):
         self.dataset_path = config["Dataset"]["dataset_path"]
         self.num_imgs = self.num_frames = len(
             glob.glob(f"{self.dataset_path}/color/*.jpg")
-        ) 
+        )
         self.pipeline = rs.pipeline()
         self.h, self.w = 480, 640
         self.config = rs.config()
@@ -665,13 +666,8 @@ class SegmentedRealsenseDataset(BaseDataset):
 
     def __getitem__(self, idx):
 
-        # idx = "{:03d}".format(idx+550)
         pose = torch.eye(4, device=self.device, dtype=self.dtype)
 
-        # rgb_frame = cv2.cvtColor(
-        #     cv2.imread(f"{self.dataset_path}/segmented/{'{:03d}'.format(idx)}.jpg"),
-        #     cv2.COLOR_BGR2RGB,
-        # )
         rgb_frame = cv2.cvtColor(
             cv2.imread(f"{self.dataset_path}/color/{'{:03d}'.format(idx)}.jpg"),
             cv2.COLOR_BGR2RGB,
@@ -689,16 +685,24 @@ class SegmentedRealsenseDataset(BaseDataset):
         depth = None
         if self.has_depth:
             depth = (
-                np.load(f"{self.dataset_path}/depth/{'{:03d}'.format(idx)}.npy") * self.depth_scale
+                np.load(f"{self.dataset_path}/depth/{'{:03d}'.format(idx)}.npy")
+                * self.depth_scale
             )
             depth[depth < 0] = 0
             np.nan_to_num(depth, nan=1000)
             img_mask = np.sum(rgb_frame, axis=2) == 0
             depth[img_mask] = 1000
-        
-        segmentation = cv2.imread(f"{self.dataset_path}/segmented/{'{:03d}'.format(idx)}.jpg", 0)
 
-        return image, depth, pose
+        segmentation = (
+            torch.from_numpy(
+                np.load(f"{self.dataset_path}/mask/{'{:03d}'.format(idx)}.npy")[0]
+            )
+            .to(float)
+            .repeat(3, 1, 1)
+        )
+
+        return image, depth, segmentation, pose
+
 
 def load_dataset(args, path, config):
     print(args, path, config)
