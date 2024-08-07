@@ -110,6 +110,9 @@ class GaussianModel:
         image_ab = torch.clamp(image_ab, 0.0, 1.0)
         rgb_raw = (image_ab * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy()
 
+        seg_raw = cam.original_seg.permute(1, 2, 0).contiguous().cpu().numpy()
+        seg_raw = seg_raw[..., 0]
+
         if depthmap is not None:
             rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
             depth = o3d.geometry.Image(depthmap.astype(np.float32))
@@ -128,9 +131,9 @@ class GaussianModel:
             rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
             depth = o3d.geometry.Image(depth_raw.astype(np.float32))
 
-        return self.create_pcd_from_image_and_depth(cam, rgb, depth, init)
+        return self.create_pcd_from_image_and_depth(cam, rgb, depth, seg_raw, init)
 
-    def create_pcd_from_image_and_depth(self, cam, rgb, depth, init=False):
+    def create_pcd_from_image_and_depth(self, cam, rgb, depth, seg, init=False):
         if init:
             downsample_factor = self.config["Dataset"]["pcd_downsample_init"]
         else:
@@ -139,6 +142,13 @@ class GaussianModel:
         if "adaptive_pointsize" in self.config["Dataset"]:
             if self.config["Dataset"]["adaptive_pointsize"]:
                 point_size = min(0.05, point_size * np.median(depth))
+
+        seggy = np.asarray(seg, dtype=np.bool_)
+        depth = np.asarray(depth).astype(np.float32)
+        depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+        depth[~seggy] = np.nan
+
+        depth = o3d.geometry.Image(depth)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             rgb,
             depth,
@@ -162,7 +172,10 @@ class GaussianModel:
             extrinsic=W2C,
             project_valid_depth_only=True,
         )
-        pcd_tmp = pcd_tmp.random_down_sample(1.0 / downsample_factor)
+
+        pcd_tmp = pcd_tmp.random_down_sample(
+            np.sum(seggy) / (seggy.shape[0] * seggy.shape[1]) / downsample_factor
+        )
         new_xyz = np.asarray(pcd_tmp.points)
         new_rgb = np.asarray(pcd_tmp.colors)
 
@@ -173,13 +186,16 @@ class GaussianModel:
 
         fused_point_cloud = torch.from_numpy(np.asarray(pcd.points)).float().cuda()
         fused_color = RGB2SH(torch.from_numpy(np.asarray(pcd.colors)).float().cuda())
+
+        # Increase number of features here
         features = (
             torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2))
             .float()
             .cuda()
         )
+        # print("features shape ", features.shape)
         features[:, :3, 0] = fused_color
-        features[:, 3:, 1:] = 0.0
+        features[:, 3:, :] = 0.0
 
         dist2 = (
             torch.clamp_min(
